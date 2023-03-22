@@ -1,0 +1,147 @@
+package ua.foxminded.warehouse.controller;
+
+import java.util.List;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RestController;
+
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import lombok.extern.slf4j.Slf4j;
+import ua.foxminded.warehouse.controller.messages.ResponseMessage;
+import ua.foxminded.warehouse.controller.swagger_response.SwaggerResponse;
+import ua.foxminded.warehouse.controller.urls.RestUrl;
+import ua.foxminded.warehouse.service.AddressService;
+import ua.foxminded.warehouse.service.dto.FinalResponse;
+import ua.foxminded.warehouse.service.entities.Address;
+import ua.foxminded.warehouse.service.exceptions.EntityNotFoundException;
+
+/**
+ * REST controller for managing addresses.
+ * 
+ * @author Bohush Darya
+ * @version 1.0
+ *
+ */
+@Slf4j
+@RestController
+public class AddressController {
+
+    @Autowired
+    private AddressService addressService;
+
+    /**
+     * Creates a new address in the database.
+     * 
+     * @param newAddress the address to be added
+     * @return the HTTP response entity with the result of the operation
+     */
+    @Operation(summary = "createAddress", description = "Add a new address to the database")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = SwaggerResponse.CREATED_CODE, description = SwaggerResponse.CREATED_DESCRIPTION),
+            @ApiResponse(responseCode = SwaggerResponse.SERVER_ERROR_CODE, description = SwaggerResponse.SERVER_ERROR_DESCRIPTION) })
+    @PostMapping(value = RestUrl.CREATE_ADDRESS, produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<String> create(@RequestBody Address newAddress) {
+        log.info("Received request to create address.");
+        boolean isCreated = false;
+        HttpStatus status = HttpStatus.INTERNAL_SERVER_ERROR;
+        String body = "";
+        try {
+            isCreated = addressService.create(newAddress);
+            if (isCreated) {
+                status = HttpStatus.CREATED;
+                body = ResponseMessage.ADDRESS_CREATED;
+            }
+        } catch (Exception e) {
+            log.error("Failed to create address.", e);
+            body = ResponseMessage.MSG_ERROR;
+        }
+        return ResponseEntity.status(status).body(body);
+    }
+
+    /**
+     * Updates an existing address in the database.
+     * 
+     * @param id       the ID of the address to be updated
+     * @param address the updated address data
+     * @return the HTTP response entity with the result of the operation
+     */
+    @Operation(summary = "updateAddress", description = "Update address")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = SwaggerResponse.UPDATED_CODE, description = SwaggerResponse.UPDATED_DESCRIPTION),
+            @ApiResponse(responseCode = SwaggerResponse.SERVER_ERROR_CODE, description = SwaggerResponse.SERVER_ERROR_DESCRIPTION) })
+    @PutMapping(value = RestUrl.UPDATE_ADDRESS, produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<String> update(@PathVariable Integer id, @RequestBody Address address) {
+        log.info("Received request to update address. ID: {}", id);
+        try {
+            addressService.update(address);
+            return new ResponseEntity<>(ResponseMessage.ADDRESS_UPDATED, HttpStatus.OK);
+        } catch (Exception e) {
+            log.error("Error updating address with id: {}", id, e);
+            return new ResponseEntity<>(ResponseMessage.MSG_ERROR, HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    /**
+     * Deletes an existing address from the database.
+     * 
+     * @param id the ID of the address to be deleted
+     * @return the HTTP response entity with the result of the operation
+     */
+    @Operation(summary = "deleteAddress", description = "Delete address")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = SwaggerResponse.DELETED_CODE, description = SwaggerResponse.DELETED_DESCRIPTION),
+            @ApiResponse(responseCode = SwaggerResponse.SERVER_ERROR_CODE, description = SwaggerResponse.SERVER_ERROR_DESCRIPTION) })
+    @DeleteMapping(value = RestUrl.REMOVE_ADDRESS, produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<String> remove(@PathVariable Integer id) {
+        log.info("Received request to delete address. ID: {}", id);
+        HttpStatus status = HttpStatus.INTERNAL_SERVER_ERROR;
+        String body = "";
+        try {
+            addressService.remove(id);
+            status = HttpStatus.NO_CONTENT;
+            body = ResponseMessage.ADDRESS_CREATED;
+        } catch (EntityNotFoundException e) {
+            status = HttpStatus.NOT_FOUND;
+            body = ResponseMessage.MSG_ERROR;
+        }
+        return ResponseEntity.status(status).body(body);
+    }
+
+    /**
+     * Retrieves a address from the database by its ID.
+     * 
+     * @param partnerId the ID of the address to retrieve
+     * @return the HTTP response entity with the retrieved address data
+     */
+    @Operation(summary = "Get an address by id", description = "Returns the address with the specified ID")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = SwaggerResponse.FOUND_CODE, description = SwaggerResponse.FOUND_DESCRIPTION),
+            @ApiResponse(responseCode = SwaggerResponse.NOT_FOUND_CODE, description = SwaggerResponse.NOT_FOUND_DESCRIPTION) })
+    @GetMapping(value = RestUrl.FIND_ADDRESS_BY_PARTNER_ID, produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<FinalResponse<Address>> findByPartnerId(@PathVariable Integer partnerId) {
+        log.info("Received request to find the address. ID: {}", partnerId);
+        FinalResponse<Address> result = new FinalResponse<>();
+        try {
+            List<Address> address = addressService.findByPartnerId(partnerId);
+            result.setDataList(address);
+            result.setMessage(ResponseMessage.MSG_SUCCESS);
+        } catch (IllegalArgumentException e) {
+            String message = ResponseMessage.MSG_ERROR + e.getMessage();
+            result.setMessage(message);
+            log.error("An error occurred while retrieving address by partner id.", e);
+            return new ResponseEntity<>(result, HttpStatus.NOT_FOUND);
+        }
+        return new ResponseEntity<>(result, HttpStatus.OK);
+    }
+}
